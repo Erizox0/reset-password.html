@@ -3,53 +3,287 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrniBik - Diagnostic Test</title>
+    <title>CrniBik - Reset Lozinke</title>
+    <!-- Use official Supabase JS v2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background-color: #111111; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { background-color: #1E1E1E; padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; text-align: center; border: 1px solid #333; }
-        h1 { color: #D50000; letter-spacing: 2px; margin-bottom: 30px; }
-        button { width: 100%; padding: 14px; margin-top: 20px; border-radius: 8px; border: none; background-color: #D50000; color: white; font-weight: bold; cursor: pointer; }
-        .message { margin-top: 20px; font-size: 14px; }
-        .success { color: #00C851; font-weight: bold; border: 1px solid #00C851; padding: 10px; border-radius: 8px; }
+        body {
+            background-color: #111111;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #1E1E1E;
+            padding: 30px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid #333;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        h1 {
+            color: #D50000;
+            letter-spacing: 4px;
+            margin-bottom: 20px;
+            font-weight: 900;
+            font-size: 28px;
+        }
+        .input-group {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #888;
+        }
+        input {
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background: #111;
+            color: white;
+            box-sizing: border-box;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            border-color: #D50000;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            margin-top: 10px;
+            border-radius: 8px;
+            border: none;
+            background-color: #D50000;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s, opacity 0.3s;
+        }
+        button:hover {
+            background-color: #A50000;
+        }
+        button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .message {
+            margin-top: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+        }
+        .error {
+            display: block;
+            color: #ff4444;
+            background: rgba(255,68,68,0.1);
+            border: 1px solid rgba(255,68,68,0.2);
+        }
+        .success {
+            display: block;
+            color: #00C851;
+            background: rgba(0,200,81,0.1);
+            border: 1px solid rgba(0,200,81,0.2);
+        }
+        .info {
+            display: block;
+            color: #33b5e5;
+            background: rgba(51,181,229,0.1);
+            border: 1px solid rgba(51,181,229,0.2);
+        }
+        #loading-overlay {
+            margin-bottom: 20px;
+            color: #888;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>CRNIBIK</h1>
-        <div id="js-test-msg" style="color: #888; margin-bottom: 20px;">Čekanje na JavaScript...</div>
 
-        <button id="submit-btn">PROMIJENI LOZINKU</button>
+        <div id="loading-overlay">Učitavanje...</div>
+
+        <div id="reset-form" style="display: none;">
+            <div class="input-group">
+                <label for="new-password">Nova lozinka</label>
+                <input type="password" id="new-password" placeholder="Unesite novu lozinku" minlength="6">
+            </div>
+            <div class="input-group">
+                <label for="confirm-password">Potvrdi novu lozinku</label>
+                <input type="password" id="confirm-password" placeholder="Ponovite lozinku">
+            </div>
+            <button id="submit-btn">PROMIJENI LOZINKU</button>
+        </div>
 
         <div id="status-message" class="message"></div>
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const jsMsg = document.getElementById("js-test-msg");
-            const button = document.getElementById("submit-btn");
-            const status = document.getElementById("status-message");
+        // PUBLIC CONFIGURATION
+        const SUPABASE_URL = "https://rudqobcfbyhmntieikoo.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1ZHFvYmNmYnlobW50aWVpa29vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0MTc4MzgsImV4cCI6MjEwNDk5MzgzOH0.LYq-AJx655wa5Q4TpHyC1m4NL2GttoCPI4ILg0-KU8M";
 
-            // Diagnostic Step 1: JS working
-            if (jsMsg) {
-                jsMsg.innerText = "TEST: JAVASCRIPT RADI";
-                jsMsg.style.color = "#00C851";
+        let supabaseClient;
+        let isRecoveryReady = false;
+
+        function showMessage(text, type) {
+            const status = document.getElementById('status-message');
+            if (status) {
+                status.innerText = text;
+                status.className = 'message ' + type;
+                status.style.display = 'block';
             }
+        }
 
-            if (!button) {
-                document.body.innerHTML += '<div style="color:red; position: fixed; top: 0;">BUTTON NOT FOUND</div>';
-                return;
-            }
+        async function finalizeVerification() {
+            if (isRecoveryReady) return;
 
-            // Diagnostic Step 2: Click listener
-            button.addEventListener("click", () => {
-                if (status) {
-                    status.innerText = "TEST: BUTTON CLICK RADI";
-                    status.className = "message success";
-                } else {
-                    alert("TEST: BUTTON CLICK RADI (ali status element nije pronađen)");
+            try {
+                // 1. Verify Session
+                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                if (sessionError) throw sessionError;
+
+                if (!session) {
+                    throw new Error("Link za reset lozinke je istekao ili nije važeći.");
                 }
-            });
+
+                // 2. Verify Authenticated User
+                const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+                if (userError) throw userError;
+
+                if (!user) {
+                    throw new Error("Nije moguće potvrditi korisnika za reset lozinke.");
+                }
+
+                // 3. Handshake Success: Show Password Form
+                isRecoveryReady = true;
+                document.getElementById('loading-overlay').style.display = 'none';
+                document.getElementById('reset-form').style.display = 'block';
+                showMessage("Spremno za unos nove lozinke.", "info");
+
+                // Cleanup URL for security but keep session in memory
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+            } catch (err) {
+                document.getElementById('loading-overlay').style.display = 'none';
+                showMessage(err.message || "Provjera sesije neuspješna.", "error");
+                console.error("Verification error:", err);
+            }
+        }
+
+        async function initRecovery() {
+            try {
+                // Step 0: Library Check
+                if (!window.supabase) {
+                    throw new Error("Supabase biblioteka nije učitana. Provjerite internet konekciju.");
+                }
+
+                // Step 1: Create Client
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                // Step 2: Listen explicitly for PASSWORD_RECOVERY event (for Implicit/Hash flow)
+                supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                    console.log("Auth Event:", event);
+                    if (event === "PASSWORD_RECOVERY") {
+                        await finalizeVerification();
+                    }
+                });
+
+                // Step 3: Handle PKCE Flow (?code=...)
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+
+                if (code) {
+                    document.getElementById('loading-overlay').innerText = "Razmjena koda za sesiju...";
+                    const { error: exchangeError } = await supabaseClient.auth.exchangeCodeForSession(code);
+                    if (exchangeError) {
+                        throw new Error("Greška pri razmjeni koda: " + exchangeError.message);
+                    }
+                    // For PKCE, we call verification directly after successful exchange
+                    await finalizeVerification();
+                } else {
+                    // Initial check for session in case hash was processed before listener attach
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (session) {
+                        // We rely on onAuthStateChange(PASSWORD_RECOVERY) for authorization of implicit flow
+                    }
+                }
+
+                // Fallback Timeout for invalid links
+                setTimeout(() => {
+                    if (!isRecoveryReady) {
+                        const status = document.getElementById('status-message');
+                        if (!status.innerText || status.innerText.includes("Učitavanje")) {
+                            document.getElementById('loading-overlay').style.display = 'none';
+                            showMessage("Link za reset lozinke je istekao ili nije važeći.", "error");
+                        }
+                    }
+                }, 10000);
+
+            } catch (err) {
+                document.getElementById('loading-overlay').style.display = 'none';
+                showMessage(err.message || "Došlo je do greške pri inicijalizaciji.", "error");
+                console.error("Initialization error:", err);
+            }
+        }
+
+        document.getElementById('submit-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('submit-btn');
+            const pass = document.getElementById('new-password').value;
+            const confirm = document.getElementById('confirm-password').value;
+
+            try {
+                if (!pass) throw new Error("Lozinka ne može biti prazna.");
+                if (pass.length < 6) throw new Error("Lozinka mora imati barem 6 karaktera.");
+                if (pass !== confirm) throw new Error("Lozinke se ne podudaraju.");
+
+                btn.disabled = true;
+                btn.innerText = "Ažuriranje lozinke...";
+                showMessage("Ažuriranje lozinke...", "info");
+
+                // Ensure session still valid
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) {
+                    throw new Error("Sesija za reset lozinke nije važeća ili je istekla.");
+                }
+
+                const { error } = await supabaseClient.auth.updateUser({ password: pass });
+
+                if (error) throw error;
+
+                // Final Success State
+                showMessage("Lozinka je uspješno promijenjena. Možeš se sada prijaviti u aplikaciju.", "success");
+                document.getElementById('reset-form').style.display = 'none';
+
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerText = "PROMIJENI LOZINKU";
+                showMessage("Greška: " + (err.message || "Neuspješno ažuriranje lozinke."), "error");
+                console.error("Update error:", err);
+            }
         });
+
+        // Start initialization
+        document.addEventListener('DOMContentLoaded', initRecovery);
     </script>
 </body>
 </html>
+
